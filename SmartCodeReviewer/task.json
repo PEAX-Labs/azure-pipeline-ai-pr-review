@@ -13,7 +13,7 @@
   "version": {
     "Major": "1",
     "Minor": "0",
-    "Patch": "5"
+    "Patch": "10"
   },
   "minimumAgentVersion": "3.232.1",
   "instanceNameFormat": "Smart Code Reviewer",
@@ -46,9 +46,9 @@
       "name": "max_tokens",
       "type": "string",
       "label": "Max Tokens",
-      "defaultValue": "450",
+      "defaultValue": "1200",
       "required": false,
-      "helpMarkDown": "Maximum tokens for AI response only (input prompt tokens don't count). Default 450 tokens (~1800 chars) fits perfectly in one comment chunk. Rule of thumb: 1 token ≈ 4 characters."
+      "helpMarkDown": "Maximum tokens for AI response. For reasoning models (like grok), this includes reasoning + actual response tokens. Default 1200 tokens provides generous headroom since response length is controlled by dynamic character instructions. For non-reasoning models, 600+ tokens is sufficient."
     },
     {
       "name": "temperature",
@@ -89,6 +89,14 @@
       "defaultValue": "*.min.js\n*.bundle.js\n*.map\npackage-lock.json\nyarn.lock\n*.generated.*",
       "required": false,
       "helpMarkDown": "File patterns to skip during review (one per line). Supports glob patterns."
+    },
+    {
+      "name": "additional_parameters",
+      "type": "multiLine",
+      "label": "Additional API Parameters",
+      "defaultValue": "",
+      "required": false,
+      "helpMarkDown": "Additional parameters to pass to the AI API using simple key:value format. Example:\n\nadditional_parameters: |\n  reasoning_effort: medium\n  top_p: 0.9\n  presence_penalty: 0.1\n\nSupports strings, numbers, and booleans (true/false)."
     }
   ],
   "execution": {

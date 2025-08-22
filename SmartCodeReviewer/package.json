@@ -1,6 +1,6 @@
 {
   "name": "smart-code-reviewer",
-  "version": "1.0.5",
+  "version": "1.0.10",
   "description": "Intelligent AI-powered code review task for Azure DevOps",
   "main": "index.js",
   "scripts": {
