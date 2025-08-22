@@ -149,11 +149,12 @@ else
     print_status 1 "Missing input parameters: ${missing_inputs[*]}"
 fi
 
-# Check for Node16 runtime
-if grep -q "\"Node16\"" "$TASK_JSON"; then
-    print_status 0 "Node16 runtime configured"
+# Check for modern Node runtime (Node20_1 or newer)
+if grep -q "\"Node20_1\"" "$TASK_JSON" || grep -q "\"Node22\"" "$TASK_JSON"; then
+    NODE_VERSION=$(grep -o "\"Node[0-9_]*\"" "$TASK_JSON" | tr -d '"')
+    print_status 0 "Modern Node runtime configured ($NODE_VERSION)"
 else
-    print_status 1 "Node16 runtime not configured"
+    print_status 1 "Modern Node runtime not configured (should be Node20_1 or newer)"
 fi
 
 print_info "Validating package configuration..."

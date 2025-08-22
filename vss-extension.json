@@ -4,6 +4,7 @@
     "name": "Smart Code Reviewer",
     "version": "1.0.0",
     "publisher": "PEAX-Labs",
+    "public": false,
     "galleryFlags": [
         "Public",
         "Preview"
