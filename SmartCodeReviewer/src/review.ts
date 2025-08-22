@@ -149,8 +149,9 @@ async function getAzureOpenAIReview(patch: string, config: AIConfig, fileName: s
         content: `Please review the following git diff for the file "${fileName}":\n\n\`\`\`diff\n${patch}\n\`\`\``
       }
     ],
-    max_tokens: maxTokens,
-    temperature
+    max_completion_tokens: maxTokens,
+    temperature,
+    model: config.model
   };
 
   const response = await fetch(endpoint, {
