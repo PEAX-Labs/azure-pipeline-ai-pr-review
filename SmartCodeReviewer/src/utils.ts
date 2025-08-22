@@ -45,8 +45,12 @@ export function chunkComment(content: string, maxChunkSize: number = 1800): stri
   const chunks: string[] = [];
   let currentPos = 0;
 
-  while (currentPos < content.length) {
-    let chunkEnd = currentPos + maxChunkSize;
+  // First pass: calculate actual chunks without headers
+  const tempChunks: string[] = [];
+  let tempPos = 0;
+  
+  while (tempPos < content.length) {
+    let chunkEnd = tempPos + maxChunkSize;
     
     // If we're not at the end, try to break at a natural point
     if (chunkEnd < content.length) {
@@ -56,7 +60,7 @@ export function chunkComment(content: string, maxChunkSize: number = 1800): stri
       
       for (const breakPoint of breakPoints) {
         const lastBreak = content.lastIndexOf(breakPoint, chunkEnd);
-        if (lastBreak > currentPos) {
+        if (lastBreak > tempPos) {
           bestBreak = lastBreak + breakPoint.length;
           break;
         }
@@ -67,14 +71,19 @@ export function chunkComment(content: string, maxChunkSize: number = 1800): stri
       }
     }
 
-    const chunk = content.slice(currentPos, chunkEnd);
-    if (chunks.length > 0) {
-      chunks.push(`**[Continued ${chunks.length + 1}/${Math.ceil(content.length / maxChunkSize)}]**\n\n${chunk}`);
+    tempChunks.push(content.slice(tempPos, chunkEnd));
+    tempPos = chunkEnd;
+  }
+
+  // Second pass: add proper headers with correct total count
+  const totalChunks = tempChunks.length;
+  
+  for (let i = 0; i < tempChunks.length; i++) {
+    if (i === 0) {
+      chunks.push(tempChunks[i]);
     } else {
-      chunks.push(chunk);
+      chunks.push(`**[Continued ${i + 1}/${totalChunks}]**\n\n${tempChunks[i]}`);
     }
-    
-    currentPos = chunkEnd;
   }
 
   return chunks;

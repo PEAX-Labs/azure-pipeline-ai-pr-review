@@ -2,7 +2,7 @@
     "manifestVersion": 1,
     "id": "SmartCodeReviewer",
     "name": "Smart Code Reviewer",
-    "version": "1.0.1",
+    "version": "1.0.5",
     "publisher": "PEAX-Labs",
     "galleryFlags": [
         "Preview"

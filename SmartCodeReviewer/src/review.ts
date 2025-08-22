@@ -67,7 +67,7 @@ function getAIConfig(): AIConfig {
   return {
     apiKey,
     model: getTaskInput('model') || 'gpt-4o',
-    maxTokens: getTaskInputAsNumber('max_tokens', 1500),
+    maxTokens: getTaskInputAsNumber('max_tokens', 450),
     temperature: getTaskInputAsFloat('temperature', 0.1),
     instructions: getTaskInput('ai_instructions', true) || '',
     endpoint: getTaskInput('ai_endpoint')
@@ -126,7 +126,22 @@ async function getOpenAIReview(patch: string, config: AIConfig, fileName: string
     temperature
   });
 
-  return response.choices[0]?.message?.content || null;
+  // Debug logging for token usage and response structure
+  console.log(`🔍 OpenAI Response Debug Info:`);
+  console.log(`  Model: ${response.model || 'unknown'}`);
+  console.log(`  Finish Reason: ${response.choices?.[0]?.finish_reason || 'unknown'}`);
+  
+  if (response.usage) {
+    console.log(`  Token Usage:`);
+    console.log(`    Prompt Tokens: ${response.usage.prompt_tokens || 0}`);
+    console.log(`    Completion Tokens: ${response.usage.completion_tokens || 0}`);
+    console.log(`    Total Tokens: ${response.usage.total_tokens || 0}`);
+  }
+  
+  const messageContent = response.choices[0]?.message?.content;
+  console.log(`  Response Content Length: ${messageContent?.length || 0} chars`);
+
+  return messageContent || null;
 }
 
 async function getAzureOpenAIReview(patch: string, config: AIConfig, fileName: string): Promise<string | null> {
@@ -169,24 +184,49 @@ async function getAzureOpenAIReview(patch: string, config: AIConfig, fileName: s
   }
 
   const data = await response.json();
-  return data.choices?.[0]?.message?.content || null;
+  
+  // Debug logging for token usage and response structure
+  console.log(`🔍 API Response Debug Info:`);
+  console.log(`  Model: ${data.model || 'unknown'}`);
+  console.log(`  Finish Reason: ${data.choices?.[0]?.finish_reason || 'unknown'}`);
+  
+  if (data.usage) {
+    console.log(`  Token Usage:`);
+    console.log(`    Prompt Tokens: ${data.usage.prompt_tokens || 0}`);
+    console.log(`    Completion Tokens: ${data.usage.completion_tokens || 0}`);
+    if (data.usage.completion_tokens_details) {
+      console.log(`    Reasoning Tokens: ${data.usage.completion_tokens_details.reasoning_tokens || 0}`);
+      console.log(`    Accepted Prediction Tokens: ${data.usage.completion_tokens_details.accepted_prediction_tokens || 0}`);
+    }
+    console.log(`    Total Tokens: ${data.usage.total_tokens || 0}`);
+  }
+  
+  const messageContent = data.choices?.[0]?.message?.content;
+  const reasoningContent = data.choices?.[0]?.message?.reasoning_content;
+  
+  console.log(`  Response Content Length: ${messageContent?.length || 0} chars`);
+  console.log(`  Reasoning Content Length: ${reasoningContent?.length || 0} chars`);
+  
+  if (!messageContent && reasoningContent) {
+    console.warn(`⚠️ Response is empty but reasoning content exists - tokens likely exhausted by reasoning`);
+    console.log(`  Reasoning preview: "${reasoningContent.substring(0, 100)}..."`);
+  }
+  
+  return messageContent || null;
 }
 
 function shouldAddComment(review: string): boolean {
-  const trimmedReview = review.trim().toLowerCase();
+  const trimmedReview = review.trim();
   
-  // Don't add comments for standard "no issues" responses
-  const noIssuesPatterns = [
-    'no feedback',
-    'no significant issues found',
-    'code looks good',
-    'no issues found',
-    'looks good',
-    'no problems',
-    'no concerns'
-  ];
-
-  return !noIssuesPatterns.some(pattern => trimmedReview.includes(pattern));
+  // Check for the explicit "no issues" signal - exact match only
+  if (trimmedReview === 'REVIEW_OK') {
+    console.log(`🚫 Skipping comment - AI signaled no issues (REVIEW_OK)`);
+    return false;
+  }
+  
+  console.log(`✅ Adding comment - AI provided feedback`);
+  console.log(`📝 Review text preview: "${trimmedReview.substring(0, 200)}${trimmedReview.length > 200 ? '...' : ''}"`);
+  return true;
 }
 
 function truncatePatch(patch: string, maxTokens: number): string {

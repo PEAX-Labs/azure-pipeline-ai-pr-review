@@ -13,7 +13,7 @@
   "version": {
     "Major": "1",
     "Minor": "0",
-    "Patch": "1"
+    "Patch": "5"
   },
   "minimumAgentVersion": "3.232.1",
   "instanceNameFormat": "Smart Code Reviewer",
@@ -46,9 +46,9 @@
       "name": "max_tokens",
       "type": "string",
       "label": "Max Tokens",
-      "defaultValue": "1500",
+      "defaultValue": "450",
       "required": false,
-      "helpMarkDown": "Maximum number of tokens for the AI response. Higher values allow for more detailed reviews but cost more. Default: 1500"
+      "helpMarkDown": "Maximum tokens for AI response only (input prompt tokens don't count). Default 450 tokens (~1800 chars) fits perfectly in one comment chunk. Rule of thumb: 1 token ≈ 4 characters."
     },
     {
       "name": "temperature",
@@ -70,7 +70,7 @@
       "name": "ai_instructions",
       "type": "multiLine",
       "label": "AI Review Instructions",
-      "defaultValue": "You are an expert senior software engineer conducting a thorough code review. Analyze the provided git diff and provide constructive feedback focusing on:\n\n🔍 **Code Quality & Best Practices**\n- Code readability, maintainability, and adherence to conventions\n- Proper error handling and edge cases\n- Performance implications and optimization opportunities\n\n🛡️ **Security & Safety**\n- Potential security vulnerabilities or data exposure risks\n- Input validation and sanitization\n- Authentication and authorization concerns\n\n🏗️ **Architecture & Design**\n- Code structure, modularity, and separation of concerns\n- Design patterns usage and architectural decisions\n- API design and interface contracts\n\n🧪 **Testing & Reliability**\n- Test coverage and quality\n- Potential bugs or logical errors\n- Boundary conditions and error scenarios\n\n**Guidelines:**\n- Focus only on changed lines (additions/modifications/deletions)\n- Provide specific, actionable feedback with examples when possible\n- Use a constructive, professional tone\n- If the code looks good overall, simply respond with 'No significant issues found. Code looks good! ✅'\n- For serious issues, use emojis: 🚨 (critical), ⚠️ (warning), 💡 (suggestion)\n- Keep responses concise but informative",
+      "defaultValue": "You are an expert senior software engineer conducting a thorough code review. Analyze the provided git diff and provide constructive feedback focusing on:\n\n🔍 **Code Quality & Best Practices**\n- Code readability, maintainability, and adherence to conventions\n- Proper error handling and edge cases\n- Performance implications and optimization opportunities\n\n🛡️ **Security & Safety**\n- Potential security vulnerabilities or data exposure risks\n- Input validation and sanitization\n- Authentication and authorization concerns\n\n🏗️ **Architecture & Design**\n- Code structure, modularity, and separation of concerns\n- Design patterns usage and architectural decisions\n- API design and interface contracts\n\n🧪 **Testing & Reliability**\n- Test coverage and quality\n- Potential bugs or logical errors\n- Boundary conditions and error scenarios\n\n**Critical Instructions:**\n- Focus only on changed lines (additions/modifications/deletions)\n- Provide specific, actionable feedback with examples when possible\n- Use a constructive, professional tone\n- For serious issues, use emojis: 🚨 (critical), ⚠️ (warning), 💡 (suggestion)\n- Keep responses concise but informative\n\n**IMPORTANT: If the code changes look good and have no significant issues, respond with exactly and only: 'REVIEW_OK'**\n**If there are ANY issues to report, provide detailed feedback. Do NOT use 'REVIEW_OK' if you have feedback to give.**",
       "required": true,
       "helpMarkDown": "Customize the AI review prompt to match your team's standards and focus areas."
     },
