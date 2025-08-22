@@ -1,9 +1,9 @@
 {
     "manifestVersion": 1,
-    "id": "AIPullRequestReview",
-    "name": "AI PR Review",
-    "version": "0.1.17",
-    "publisher": "97Saundersj",
+    "id": "SmartCodeReviewer",
+    "name": "Smart Code Reviewer",
+    "version": "1.0.0",
+    "publisher": "PEAX-Labs",
     "galleryFlags": [
         "Public",
         "Preview"
@@ -13,7 +13,7 @@
             "id": "Microsoft.VisualStudio.Services"
         }
     ],    
-    "description": "A task that reviews Pull Requests using GPT models from OpenAI",
+    "description": "An intelligent AI-powered task that provides comprehensive code reviews for Pull Requests using advanced language models",
     "categories": [
         "Azure Pipelines"
     ],
@@ -21,19 +21,22 @@
         "default": "images/icon.png"        
     },
     "tags": [
-        "OpenAI",
-        "GPT",
-        "pullRequest",
-        "review"
+        "AI",
+        "code-review",
+        "pull-request",
+        "quality",
+        "automation",
+        "openai",
+        "gpt"
     ],
     "files": [
         {
-            "path": "GPTPullRequestReview"
+            "path": "SmartCodeReviewer"
         }
     ],
     "repository" : {
         "type" : "git",
-        "uri" : "https://github.com/97saundersj/azure-pipeline-ai-pr-review"
+        "uri" : "https://github.com/PEAX-Labs/azure-pipeline-ai-pr-review"
     },
     "content": {
         "details": {
@@ -42,13 +45,13 @@
     },
     "contributions": [
         {
-            "id": "GPTPullRequestReview",
+            "id": "SmartCodeReviewer",
             "type": "ms.vss-distributed-task.task",
             "targets": [
                 "ms.vss-distributed-task.tasks"
             ],
             "properties": {
-                "name": "GPTPullRequestReview"
+                "name": "SmartCodeReviewer"
             }
         }
     ]

@@ -1,0 +1,29 @@
+{
+  "name": "smart-code-reviewer",
+  "version": "1.0.0",
+  "description": "Intelligent AI-powered code review task for Azure DevOps",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc -p .",
+    "clean": "rimraf dist",
+    "prebuild": "npm run clean"
+  },
+  "keywords": ["azure-devops", "ai", "code-review", "openai", "automation"],
+  "author": "PEAX Labs",
+  "license": "MIT",
+  "dependencies": {
+    "azure-pipelines-task-lib": "^4.17.1",
+    "binary-extensions": "^2.3.0",
+    "openai": "^4.67.3",
+    "simple-git": "^3.27.0",
+    "minimatch": "^10.0.1",
+    "node-fetch": "^2.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.6",
+    "@types/minimatch": "^5.1.2",
+    "@types/node-fetch": "^2.6.4",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.8.3"
+  }
+}

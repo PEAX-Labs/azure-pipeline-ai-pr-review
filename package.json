@@ -1,4 +1,33 @@
 {
+  "name": "smart-code-reviewer-extension",
+  "version": "1.0.0",
+  "description": "Smart Code Reviewer - AI-powered Pull Request reviews for Azure DevOps",
+  "main": "index.js",
+  "scripts": {
+    "build": "cd SmartCodeReviewer && npm run build",
+    "install-deps": "cd SmartCodeReviewer && npm install",
+    "clean": "cd SmartCodeReviewer && npm run clean",
+    "package": "tfx extension create --manifest-globs vss-extension.json"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/PEAX-Labs/azure-pipeline-ai-pr-review.git"
+  },
+  "keywords": [
+    "azure-devops",
+    "ai",
+    "code-review",
+    "openai",
+    "pull-request",
+    "automation",
+    "quality"
+  ],
+  "author": "PEAX Labs",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/PEAX-Labs/azure-pipeline-ai-pr-review/issues"
+  },
+  "homepage": "https://github.com/PEAX-Labs/azure-pipeline-ai-pr-review#readme",
   "devDependencies": {
     "typescript": "^5.8.3"
   }

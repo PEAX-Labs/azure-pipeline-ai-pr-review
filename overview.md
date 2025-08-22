@@ -1,22 +1,38 @@
-# AI PR Review Task for Azure Pipelines
+# Smart Code Reviewer - AI-Powered Pull Request Reviews
 
-The AI PR Review Task for Azure Pipelines is designed to use the GPT model from OpenAI to review Pull Requests and provide feedback as comments in the Pull Request.
+Transform your code review process with intelligent AI analysis that helps maintain code quality, security, and best practices across your development team.
 
-## Setup
+## 🚀 What is Smart Code Reviewer?
 
-Before using this task, ensure that the build service has permissions to contribute to Pull Requests in your repository, and allow the task to access the system token.
+Smart Code Reviewer is an advanced Azure DevOps extension that automatically analyzes Pull Requests using state-of-the-art AI models like GPT-4o. It provides comprehensive feedback on code quality, security vulnerabilities, performance issues, and architectural improvements.
 
-### Give permission to the build service agent
+## ✨ Key Features
 
-![contribute_to_pr](https://github.com/97saundersj/azure-pipeline-ai-pr-review/blob/main/images/contribute_to_pr.png?raw=true)
+- **🧠 Advanced AI Models**: Support for latest OpenAI models (GPT-4o, GPT-4-turbo) and Azure OpenAI
+- **🔍 Comprehensive Analysis**: Reviews code quality, security, architecture, and testing practices
+- **⚙️ Fully Customizable**: Configure AI instructions, models, and review parameters to match your team's standards
+- **💬 Smart Comments**: Automatic comment chunking handles Azure DevOps character limits
+- **🎯 Intelligent Filtering**: Skip minified files, generated code, and other irrelevant files
+- **🌍 Cross-Platform**: Works on all Azure DevOps build agents (Linux, Windows, macOS)
 
-### Allow Task to access the system token
+## 🎯 Perfect For
 
-Depending on the type of pipeline you are using, follow one of the two steps below:
+- **Development Teams** wanting to maintain consistent code quality
+- **Security-Conscious Organizations** needing automated security reviews
+- **Fast-Moving Projects** requiring quick, thorough code feedback
+- **Educational Environments** helping developers learn best practices
 
-#### Yaml pipelines 
+## 🔧 Quick Setup
 
-Add a checkout section with persistCredentials set to true.
+### 1. Grant Permissions
+
+Ensure your build service can contribute to pull requests:
+
+![contribute_to_pr](https://github.com/PEAX-Labs/azure-pipeline-ai-pr-review/blob/main/images/contribute_to_pr.png?raw=true)
+
+### 2. Enable Token Access
+
+#### For YAML Pipelines
 
 ```yaml
 steps:
@@ -24,42 +40,96 @@ steps:
   persistCredentials: true
 ```
 
-#### Classic editors 
+#### For Classic Pipelines
 
-Enable the option "Allow scripts to access the OAuth token" in the "Agent job" properties.
+Enable "Allow scripts to access the OAuth token" in Agent job properties:
 
-![allow_access_token](https://github.com/97saundersj/azure-pipeline-ai-pr-review/blob/main/images/allow_access_token.png?raw=true)
+![allow_access_token](https://github.com/PEAX-Labs/azure-pipeline-ai-pr-review/blob/main/images/allow_access_token.png?raw=true)
 
-### Azure Open AI service
+### 3. Configure Your Pipeline
 
-If you choose to use the Azure Open AI service, you must fill in the endpoint and API key of Azure OpenAI. The format of the endpoint is as follows: https://{XXXXXXXX}.openai.azure.com/openai/deployments/{MODEL_NAME}/chat/completions?api-version={API_VERSION}
+```yaml
+steps:
+- task: SmartCodeReviewer@1
+  inputs:
+    api_key: '$(OPENAI_API_KEY)'  # Store securely in variable groups
+    model: 'gpt-4o'               # Latest and most capable model
+```
 
-### OpenAI Models
+## 🎨 Customization Examples
 
-In case you don't use Azure Open AI Service, you can choose which model to use, the supported models are "gpt-4", "gpt-3.5-turbo" and "gpt-3.5-turbo-16k". if no model is selected the "gpt-3.5-turbo" is used.
+### Security-Focused Reviews
+```yaml
+ai_instructions: |
+  Focus on security vulnerabilities:
+  - SQL injection risks
+  - XSS vulnerabilities  
+  - Authentication bypasses
+  - Data exposure issues
+  Provide specific fixes for any issues found.
+```
 
-## How to use it
+### Performance-Oriented Analysis
+```yaml
+ai_instructions: |
+  Analyze code for performance implications:
+  - Algorithm efficiency
+  - Database query optimization
+  - Memory usage patterns
+  - Caching opportunities
+  Rate the performance impact of changes.
+```
 
-### Install the extension
+## 🌐 Azure OpenAI Support
 
-To use the GPT Pull Request Review Task, first install the extension in your Azure DevOps organization. Click on the "Get it free" button and follow the prompts to install it. You may need to authorize the extension to access your Azure DevOps account.
+Enterprise customers can use Azure OpenAI for enhanced security and compliance:
 
-### Add the task to the build pipeline
+```yaml
+- task: SmartCodeReviewer@1
+  inputs:
+    api_key: '$(AZURE_OPENAI_KEY)'
+    ai_endpoint: 'https://your-resource.openai.azure.com/openai/deployments/gpt-4/chat/completions?api-version=2024-02-15-preview'
+```
 
-After installing the extension, add the task to your build pipeline. Go to your build pipeline, click on the "+" icon to add a new task, and search for "Review PullRequest by GPT". Select it and add it to your pipeline.
+## 📊 Review Quality
 
-### Configure the task
+Our AI provides actionable feedback with:
 
-Once you have added the task to your pipeline, configure it. In the task configuration, provide your API key for OpenAI API. To create an API key, go to https://platform.openai.com/account/api-keys.
+- 🚨 **Critical Issues**: Security vulnerabilities, breaking changes
+- ⚠️ **Warnings**: Code smells, potential bugs
+- 💡 **Suggestions**: Performance improvements, best practices
+- ✅ **Approvals**: Clean code confirmation
 
-### Review Pull Requests
+## 🛡️ Enterprise Ready
 
-When the build is triggered from a Pull Request, the task will review it. If there is feedback on the changed code, the task will add comments to the Pull Request.
-![example_comment](images/example_comment.png)
+- **Secure**: API keys stored in Azure DevOps variable groups
+- **Scalable**: Handles large codebases with intelligent chunking
+- **Compliant**: Works with self-signed certificates and private networks
+- **Reliable**: Comprehensive error handling and retry logic
 
-If the build is triggered manually, the task will be skipped.
+## 🚀 Getting Started
 
-## Compatible with Linux Build Agents
+1. **Install** the extension from Azure DevOps Marketplace
+2. **Configure** your API key in a secure variable group
+3. **Add** the task to your pipeline
+4. **Customize** the AI instructions for your team's needs
+5. **Watch** as AI provides intelligent code reviews automatically
 
-The tasks can execute on all supported build agent operating systems **including Linux and MacOS**.
+## 📈 Benefits
+
+- **Faster Reviews**: Instant AI feedback reduces review turnaround time
+- **Consistent Quality**: Standardized review criteria across all pull requests
+- **Knowledge Sharing**: AI explanations help developers learn best practices
+- **Early Detection**: Catch issues before they reach production
+- **Team Productivity**: Focus human reviewers on architecture and business logic
+
+## 🔗 Learn More
+
+- [GitHub Repository](https://github.com/PEAX-Labs/azure-pipeline-ai-pr-review)
+- [Configuration Guide](https://github.com/PEAX-Labs/azure-pipeline-ai-pr-review#configuration-options)
+- [Troubleshooting](https://github.com/PEAX-Labs/azure-pipeline-ai-pr-review#troubleshooting)
+
+---
+
+**Ready to revolutionize your code review process?** Install Smart Code Reviewer today and experience the future of automated code quality assurance.
 

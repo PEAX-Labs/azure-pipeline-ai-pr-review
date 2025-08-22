@@ -1,0 +1,99 @@
+{
+  "id": "A4E2F8C6-1D5B-4C9A-8F3E-7B2A9D6E4C1F",
+  "name": "SmartCodeReviewer",
+  "friendlyName": "Smart Code Reviewer",
+  "description": "Intelligent AI-powered code review task that provides comprehensive feedback on Pull Requests using advanced language models",
+  "author": "PEAX Labs",
+  "helpMarkDown": "[More Information](https://github.com/PEAX-Labs/azure-pipeline-ai-pr-review)",
+  "category": "Utility",
+  "visibility": [
+    "Build"
+  ],
+  "demands": [],
+  "version": {
+    "Major": "1",
+    "Minor": "0",
+    "Patch": "0"
+  },
+  "minimumAgentVersion": "2.144.0",
+  "instanceNameFormat": "Smart Code Reviewer",
+  "inputs": [
+    {
+      "name": "api_key",
+      "type": "string",
+      "label": "API Key",
+      "defaultValue": "",
+      "required": true,
+      "helpMarkDown": "API key for OpenAI or Azure OpenAI service. Keep this secure by using Azure DevOps secret variables."
+    },
+    {
+      "name": "model",
+      "type": "string",
+      "label": "AI Model",
+      "defaultValue": "gpt-4o",
+      "required": false,
+      "helpMarkDown": "The AI model to use (e.g., gpt-4o, gpt-4o-mini, gpt-4-turbo, gpt-3.5-turbo, claude-3-sonnet, etc.). Not used with Azure OpenAI endpoints. Default: gpt-4o"
+    },
+    {
+      "name": "ai_endpoint",
+      "type": "string",
+      "label": "Azure OpenAI Endpoint",
+      "defaultValue": "",
+      "required": false,
+      "helpMarkDown": "Azure OpenAI endpoint URL. Format: https://YOUR-RESOURCE.openai.azure.com/openai/deployments/YOUR-MODEL/chat/completions?api-version=2024-02-15-preview. Leave empty to use OpenAI directly."
+    },
+    {
+      "name": "max_tokens",
+      "type": "string",
+      "label": "Max Tokens",
+      "defaultValue": "1500",
+      "required": false,
+      "helpMarkDown": "Maximum number of tokens for the AI response. Higher values allow for more detailed reviews but cost more. Default: 1500"
+    },
+    {
+      "name": "temperature",
+      "type": "string",
+      "label": "Temperature",
+      "defaultValue": "0.1",
+      "required": false,
+      "helpMarkDown": "Controls randomness in AI responses (0.0-2.0). Lower values make responses more focused and deterministic. Default: 0.1"
+    },
+    {
+      "name": "support_self_signed_certificate",
+      "type": "boolean",
+      "label": "Support Self-Signed Certificates",
+      "defaultValue": "false",
+      "required": false,
+      "helpMarkDown": "Enable support for self-signed SSL certificates."
+    },
+    {
+      "name": "ai_instructions",
+      "type": "multiLine",
+      "label": "AI Review Instructions",
+      "defaultValue": "You are an expert senior software engineer conducting a thorough code review. Analyze the provided git diff and provide constructive feedback focusing on:\n\n🔍 **Code Quality & Best Practices**\n- Code readability, maintainability, and adherence to conventions\n- Proper error handling and edge cases\n- Performance implications and optimization opportunities\n\n🛡️ **Security & Safety**\n- Potential security vulnerabilities or data exposure risks\n- Input validation and sanitization\n- Authentication and authorization concerns\n\n🏗️ **Architecture & Design**\n- Code structure, modularity, and separation of concerns\n- Design patterns usage and architectural decisions\n- API design and interface contracts\n\n🧪 **Testing & Reliability**\n- Test coverage and quality\n- Potential bugs or logical errors\n- Boundary conditions and error scenarios\n\n**Guidelines:**\n- Focus only on changed lines (additions/modifications/deletions)\n- Provide specific, actionable feedback with examples when possible\n- Use a constructive, professional tone\n- If the code looks good overall, simply respond with 'No significant issues found. Code looks good! ✅'\n- For serious issues, use emojis: 🚨 (critical), ⚠️ (warning), 💡 (suggestion)\n- Keep responses concise but informative",
+      "required": true,
+      "helpMarkDown": "Customize the AI review prompt to match your team's standards and focus areas."
+    },
+    {
+      "name": "comment_chunk_size",
+      "type": "string",
+      "label": "Comment Chunk Size",
+      "defaultValue": "1800",
+      "required": false,
+      "helpMarkDown": "Maximum characters per comment to avoid Azure DevOps limits (max 2048). Default: 1800"
+    },
+    {
+      "name": "skip_files",
+      "type": "multiLine",
+      "label": "Skip File Patterns",
+      "defaultValue": "*.min.js\n*.bundle.js\n*.map\npackage-lock.json\nyarn.lock\n*.generated.*",
+      "required": false,
+      "helpMarkDown": "File patterns to skip during review (one per line). Supports glob patterns."
+    }
+  ],
+  "execution": {
+    "Node20_1": {
+      "target": "dist/index.js"
+    }
+  }
+}

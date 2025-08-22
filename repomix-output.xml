@@ -1,0 +1,882 @@
+This file is a merged representation of a subset of the codebase, containing files not matching ignore patterns, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of a subset of the repository's contents that is considered the most important context.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching these patterns are excluded: **/*.svg
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+.github/
+  workflows/
+    build.yml
+GPTPullRequestReview/
+  src/
+    git.ts
+    index.ts
+    pr.ts
+    review.ts
+    utils.ts
+  package.json
+  task.json
+  tsconfig.json
+.gitignore
+LICENSE
+overview.md
+package.json
+README.md
+vss-extension.json
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path=".github/workflows/build.yml">
+name: Build and Package Extension
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Update version numbers
+      run: |
+        # Get current version from vss-extension.json
+        CURRENT_VERSION=$(node -p "require('./vss-extension.json').version")
+        # Increment patch version
+        NEW_VERSION=$(node -p "const [major, minor, patch] = '$CURRENT_VERSION'.split('.'); [major, minor, parseInt(patch) + 1].join('.')")
+        
+        # Update vss-extension.json
+        node -p "const fs=require('fs'); const pkg=require('./vss-extension.json'); pkg.version='$NEW_VERSION'; fs.writeFileSync('./vss-extension.json', JSON.stringify(pkg, null, 2))"
+        
+        # Update task.json
+        node -p "const fs=require('fs'); const pkg=require('./GPTPullRequestReview/task.json'); pkg.version.Patch='$NEW_VERSION'.split('.')[2]; fs.writeFileSync('./GPTPullRequestReview/task.json', JSON.stringify(pkg, null, 2))"
+
+    - name: Install dependencies
+      run: |
+        cd GPTPullRequestReview
+        npm install
+        cd ..
+
+    - name: Build TypeScript
+      run: |
+        cd GPTPullRequestReview
+        npm run build
+        cd ..
+
+    - name: Install tfx-cli
+      run: npm install -g tfx-cli
+
+    - name: Package Extension
+      run: tfx extension create --manifest-globs vss-extension.json
+
+    - name: Upload Extension
+      uses: actions/upload-artifact@v4
+      with:
+        name: extension
+        path: "*.vsix"
+        retention-days: 5
+</file>
+
+<file path="LICENSE">
+MIT License
+
+Copyright (c) 2023 larhrouch mustapha
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+</file>
+
+<file path="package.json">
+{
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}
+</file>
+
+<file path="GPTPullRequestReview/src/git.ts">
+import { SimpleGitOptions, SimpleGit, simpleGit } from 'simple-git';
+import * as tl from "azure-pipelines-task-lib/task";
+import binaryExtensions from 'binary-extensions';
+import { getFileExtension } from './utils';
+
+const gitOptions: Partial<SimpleGitOptions> = {
+  baseDir: `${tl.getVariable('System.DefaultWorkingDirectory')}`,
+  binary: 'git'
+};
+
+export const git: SimpleGit = simpleGit(gitOptions);
+
+export async function getChangedFiles(targetBranch: string) {
+  await git.addConfig('core.pager', 'cat');
+  await git.addConfig('core.quotepath', 'false');
+  await git.fetch();
+
+  const diffs = await git.diff([targetBranch, '--name-only', '--diff-filter=AM']);
+  const files = diffs.split('\n').filter(line => line.trim().length > 0);
+  const nonBinaryFiles = files.filter(file => !binaryExtensions.includes(getFileExtension(file)));
+
+  console.log(`Changed Files (excluding binary files) : \n ${nonBinaryFiles.join('\n')}`);
+
+  return nonBinaryFiles;
+}
+</file>
+
+<file path="GPTPullRequestReview/src/index.ts">
+import * as tl from "azure-pipelines-task-lib/task";
+import { Configuration, OpenAIApi } from 'openai';
+import { deleteExistingComments } from './pr';
+import { reviewFile } from './review';
+import { getTargetBranchName } from './utils';
+import { getChangedFiles } from './git';
+import https from 'https';
+
+async function run() {
+  try {
+    if (tl.getVariable('Build.Reason') !== 'PullRequest') {
+      tl.setResult(tl.TaskResult.Skipped, "This task should be run only when the build is triggered from a Pull Request.");
+      return;
+    }
+
+    let openai: OpenAIApi | undefined;
+    const supportSelfSignedCertificate = tl.getBoolInput('support_self_signed_certificate');
+    const apiKey = tl.getInput('api_key', true);
+    const aoiEndpoint = tl.getInput('aoi_endpoint');
+
+    if (apiKey == undefined) {
+      tl.setResult(tl.TaskResult.Failed, 'No Api Key provided!');
+      return;
+    }
+
+    if (aoiEndpoint == undefined) {
+      const openAiConfiguration = new Configuration({
+        apiKey: apiKey,
+      });
+
+      openai = new OpenAIApi(openAiConfiguration);
+    }
+
+    const httpsAgent = new https.Agent({
+      rejectUnauthorized: !supportSelfSignedCertificate
+    });
+
+    let targetBranch = getTargetBranchName();
+
+    if (!targetBranch) {
+      tl.setResult(tl.TaskResult.Failed, 'No target branch found!');
+      return;
+    }
+
+    const filesNames = await getChangedFiles(targetBranch);
+
+    await deleteExistingComments(httpsAgent);
+
+    for (const fileName of filesNames) {
+      await reviewFile(targetBranch, fileName, httpsAgent, apiKey, openai, aoiEndpoint)
+    }
+
+    tl.setResult(tl.TaskResult.Succeeded, "Pull Request reviewed.");
+  }
+  catch (err: any) {
+    tl.setResult(tl.TaskResult.Failed, err.message);
+  }
+}
+
+run();
+</file>
+
+<file path="GPTPullRequestReview/src/pr.ts">
+import * as tl from "azure-pipelines-task-lib/task";
+import { Agent } from 'https';
+import fetch from 'node-fetch';
+
+export async function addCommentToPR(fileName: string, comment: string, httpsAgent: Agent) {
+  const body = {
+    comments: [
+      {
+        parentCommentId: 0,
+        content: comment,
+        commentType: 1
+      }
+    ],
+    status: 1,
+    threadContext: {
+      filePath: fileName,
+    }
+  }
+
+  const stringifiedBody = JSON.stringify(body)
+
+  const prUrl = `${tl.getVariable('SYSTEM.TEAMFOUNDATIONCOLLECTIONURI')}${tl.getVariable('SYSTEM.TEAMPROJECTID')}/_apis/git/repositories/${tl.getVariable('Build.Repository.Name')}/pullRequests/${tl.getVariable('System.PullRequest.PullRequestId')}/threads?api-version=5.1`
+
+  await fetch(prUrl, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${tl.getVariable('SYSTEM.ACCESSTOKEN')}`, 'Content-Type': 'application/json' },
+    body: stringifiedBody,
+    agent: httpsAgent
+  });
+
+  console.log(`New comment added.`, stringifiedBody);
+}
+
+export async function deleteExistingComments(httpsAgent: Agent) {
+  console.log("Start deleting existing comments added by the previous Job ...");
+
+  const threadsUrl = `${tl.getVariable('SYSTEM.TEAMFOUNDATIONCOLLECTIONURI')}${tl.getVariable('SYSTEM.TEAMPROJECTID')}/_apis/git/repositories/${tl.getVariable('Build.Repository.Name')}/pullRequests/${tl.getVariable('System.PullRequest.PullRequestId')}/threads?api-version=5.1`;
+  const threadsResponse = await fetch(threadsUrl, {
+    headers: { Authorization: `Bearer ${tl.getVariable('SYSTEM.ACCESSTOKEN')}` },
+    agent: httpsAgent
+  });
+
+  const threads = await threadsResponse.json() as { value: [] };
+  const threadsWithContext = threads.value.filter((thread: any) => thread.threadContext !== null);
+
+  const collectionUri = tl.getVariable('SYSTEM.TEAMFOUNDATIONCOLLECTIONURI') as string;
+  const collectionName = getCollectionName(collectionUri);
+  const buildServiceName = `${tl.getVariable('SYSTEM.TEAMPROJECT')} Build Service (${collectionName})`;
+
+  for (const thread of threadsWithContext as any[]) {
+    const commentsUrl = `${tl.getVariable('SYSTEM.TEAMFOUNDATIONCOLLECTIONURI')}${tl.getVariable('SYSTEM.TEAMPROJECTID')}/_apis/git/repositories/${tl.getVariable('Build.Repository.Name')}/pullRequests/${tl.getVariable('System.PullRequest.PullRequestId')}/threads/${thread.id}/comments?api-version=5.1`;
+    const commentsResponse = await fetch(commentsUrl, {
+      headers: { Authorization: `Bearer ${tl.getVariable('SYSTEM.ACCESSTOKEN')}` },
+      agent: httpsAgent
+    });
+
+    const comments = await commentsResponse.json() as { value: [] };
+
+    for (const comment of comments.value.filter((comment: any) => comment.author.displayName === buildServiceName) as any[]) {
+      const removeCommentUrl = `${tl.getVariable('SYSTEM.TEAMFOUNDATIONCOLLECTIONURI')}${tl.getVariable('SYSTEM.TEAMPROJECTID')}/_apis/git/repositories/${tl.getVariable('Build.Repository.Name')}/pullRequests/${tl.getVariable('System.PullRequest.PullRequestId')}/threads/${thread.id}/comments/${comment.id}?api-version=5.1`;
+
+      await fetch(removeCommentUrl, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${tl.getVariable('SYSTEM.ACCESSTOKEN')}` },
+        agent: httpsAgent
+      });
+    }
+  }
+
+  console.log("Existing comments deleted.");
+}
+
+function getCollectionName(collectionUri: string) {
+  const collectionUriWithoutProtocol = collectionUri!.replace('https://', '').replace('http://', '');
+
+  if (collectionUriWithoutProtocol.includes('.visualstudio.')) {
+    return collectionUriWithoutProtocol.split('.visualstudio.')[0];
+  }
+  else {
+    return collectionUriWithoutProtocol.split('/')[1];
+  }
+}
+</file>
+
+<file path=".gitignore">
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Diagnostic reports (https://nodejs.org/api/report.html)
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Directory for instrumented libs generated by jscoverage/JSCover
+lib-cov
+
+# Coverage directory used by tools like istanbul
+coverage
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# Grunt intermediate storage (https://gruntjs.com/creating-plugins#storing-task-files)
+.grunt
+
+# Bower dependency directory (https://bower.io/)
+bower_components
+
+# node-waf configuration
+.lock-wscript
+
+# Compiled binary addons (https://nodejs.org/api/addons.html)
+build/Release
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# TypeScript v1 declaration files
+typings/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variables file
+.env
+.env.test
+
+# parcel-bundler cache (https://parceljs.org/)
+.cache
+
+# Next.js build output
+.next
+
+# Nuxt.js build / generate output
+.nuxt
+dist
+
+# Gatsby files
+.cache/
+# Comment in the public line in if your project uses Gatsby and *not* Next.js
+# https://nextjs.org/blog/next-9-1#public-directory-support
+# public
+
+# vuepress build output
+.vuepress/dist
+
+# Serverless directories
+.serverless/
+
+# FuseBox cache
+.fusebox/
+
+# DynamoDB Local files
+.dynamodb/
+
+# TernJS port file
+.tern-port
+
+.taskkey
+
+**/.DS_Store
+
+*.vsix
+
+*.js
+</file>
+
+<file path="GPTPullRequestReview/src/utils.ts">
+import * as tl from "azure-pipelines-task-lib/task";
+
+export function getFileExtension(fileName: string) {
+  return fileName.slice((fileName.lastIndexOf(".") - 1 >>> 0) + 2);
+}
+
+export function getTargetBranchName() {
+  let targetBranchName = tl.getVariable('System.PullRequest.TargetBranchName');
+
+  if (!targetBranchName) {
+    targetBranchName = tl.getVariable('System.PullRequest.TargetBranch')?.replace('refs/heads/', '');
+  }
+
+  if (!targetBranchName) {
+    return undefined;
+  }
+
+  return `origin/${targetBranchName}`;
+}
+
+export const defaultAIInstruction: string = `
+Act as a code reviewer of a Pull Request, providing feedback on possible bugs and clean code issues.
+You are provided with the Pull Request changes in a patch format.
+Each patch entry has the commit message in the Subject line followed by the code changes (diffs) in a unidiff format.
+
+As a code reviewer, your task is:
+  - Review only added, edited, or deleted lines.
+  - If there's no bugs and the changes are correct, write only 'No feedback.'
+  - If there's a bug or incorrect code changes, don't write 'No feedback.'
+`;
+</file>
+
+<file path="GPTPullRequestReview/tsconfig.json">
+{
+  "include": ["./src/**/*"],
+  "exclude": ["node_modules"],
+  "compilerOptions": {
+    "target": "es6",                          /* Specify ECMAScript target version: 'ES3' (default), 'ES5', 'ES2015', 'ES2016', 'ES2017', 'ES2018', 'ES2019', 'ES2020', or 'ESNEXT'. */
+    "module": "commonjs",                     /* Specify module code generation: 'none', 'commonjs', 'amd', 'system', 'umd', 'es2015', 'es2020', or 'ESNext'. */
+    "strict": true,                           /* Enable all strict type-checking options. */
+    "esModuleInterop": true,                  /* Enables emit interoperability between CommonJS and ES Modules via creation of namespace objects for all imports. Implies 'allowSyntheticDefaultImports'. */
+    "skipLibCheck": true,                     /* Skip type checking of declaration files. */
+    "forceConsistentCasingInFileNames": true  /* Disallow inconsistently-cased references to the same file. */,
+    "outDir": "./dist",                       /* Redirect output structure to the directory. */
+    "rootDir": "./src",                       /* Specify the root directory of input files. Use to control the output directory structure with --outDir. */
+    "moduleResolution": "node",              /* Specify module resolution strategy: 'node' (Node.js) or 'classic' (TypeScript pre-1.6). */
+  }
+}
+</file>
+
+<file path="GPTPullRequestReview/src/review.ts">
+import fetch from 'node-fetch';
+import { git } from './git';
+import { OpenAIApi } from 'openai';
+import { addCommentToPR } from './pr';
+import { Agent } from 'https';
+import * as tl from "azure-pipelines-task-lib/task";
+
+export async function reviewFile(targetBranch: string, fileName: string, httpsAgent: Agent, apiKey: string, openai: OpenAIApi | undefined, aoiEndpoint: string | undefined) {
+  console.log(`\nStart reviewing ${fileName} ...`);
+
+  const defaultOpenAIModel = 'gpt-3.5-turbo';
+  const patch = await git.diff([targetBranch, '--', fileName]);
+
+  const instructions = tl.getInput('ai_instructions')
+
+  try {
+    let choices: any;
+
+    if (openai) {
+
+      console.log(`Sending changes to OpenAI:`)
+      console.log(patch)
+
+      const response = await openai.createChatCompletion({
+        model: tl.getInput('model') || defaultOpenAIModel,
+        messages: [
+          {
+            role: "system",
+            content: instructions
+          },
+          {
+            role: "user",
+            content: patch
+          }
+        ],
+        max_tokens: 500
+      });
+
+      choices = response.data.choices
+    }
+    else if (aoiEndpoint) {
+      const request = await fetch(aoiEndpoint, {
+        method: 'POST',
+        headers: { 'api-key': `${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          max_tokens: 500,
+          messages: [{
+            role: "user",
+            content: `${instructions}\n, patch : ${patch}}`
+          }]
+        })
+      });
+
+      const response = await request.json();
+
+      choices = response.choices;
+    }
+
+    if (choices && choices.length > 0) {
+      const review = choices[0].message?.content as string;
+
+      if (review.trim() !== "No feedback.") {
+        await addCommentToPR(fileName, review, httpsAgent);
+      }
+    }
+
+    console.log(`Review of ${fileName} completed.`);
+  }
+  catch (error: any) {
+    if (error.response) {
+      console.log(error.response.status);
+      console.log(error.response.data);
+    } else {
+      console.log(error.message);
+    }
+  }
+}
+</file>
+
+<file path="GPTPullRequestReview/package.json">
+{
+  "name": "gptpullrequestreview",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc -p ."
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "azure-pipelines-task-lib": "^4.3.1",
+    "binary-extensions": "^2.2.0",
+    "node-fetch": "^2.6.6",
+    "openai": "^3.3.0",
+    "simple-git": "^3.17.0"
+  },
+  "devDependencies": {
+    "@types/node": "^18.15.3",
+    "@types/node-fetch": "^2.6.4",
+    "@types/q": "^1.5.5"
+  }
+}
+</file>
+
+<file path="overview.md">
+# AI PR Review Task for Azure Pipelines
+
+The AI PR Review Task for Azure Pipelines is designed to use the GPT model from OpenAI to review Pull Requests and provide feedback as comments in the Pull Request.
+
+## Setup
+
+Before using this task, ensure that the build service has permissions to contribute to Pull Requests in your repository, and allow the task to access the system token.
+
+### Give permission to the build service agent
+
+![contribute_to_pr](https://github.com/97saundersj/azure-pipeline-ai-pr-review/blob/main/images/contribute_to_pr.png?raw=true)
+
+### Allow Task to access the system token
+
+Depending on the type of pipeline you are using, follow one of the two steps below:
+
+#### Yaml pipelines 
+
+Add a checkout section with persistCredentials set to true.
+
+```yaml
+steps:
+- checkout: self
+  persistCredentials: true
+```
+
+#### Classic editors 
+
+Enable the option "Allow scripts to access the OAuth token" in the "Agent job" properties.
+
+![allow_access_token](https://github.com/97saundersj/azure-pipeline-ai-pr-review/blob/main/images/allow_access_token.png?raw=true)
+
+### Azure Open AI service
+
+If you choose to use the Azure Open AI service, you must fill in the endpoint and API key of Azure OpenAI. The format of the endpoint is as follows: https://{XXXXXXXX}.openai.azure.com/openai/deployments/{MODEL_NAME}/chat/completions?api-version={API_VERSION}
+
+### OpenAI Models
+
+In case you don't use Azure Open AI Service, you can choose which model to use, the supported models are "gpt-4", "gpt-3.5-turbo" and "gpt-3.5-turbo-16k". if no model is selected the "gpt-3.5-turbo" is used.
+
+## How to use it
+
+### Install the extension
+
+To use the GPT Pull Request Review Task, first install the extension in your Azure DevOps organization. Click on the "Get it free" button and follow the prompts to install it. You may need to authorize the extension to access your Azure DevOps account.
+
+### Add the task to the build pipeline
+
+After installing the extension, add the task to your build pipeline. Go to your build pipeline, click on the "+" icon to add a new task, and search for "Review PullRequest by GPT". Select it and add it to your pipeline.
+
+### Configure the task
+
+Once you have added the task to your pipeline, configure it. In the task configuration, provide your API key for OpenAI API. To create an API key, go to https://platform.openai.com/account/api-keys.
+
+### Review Pull Requests
+
+When the build is triggered from a Pull Request, the task will review it. If there is feedback on the changed code, the task will add comments to the Pull Request.
+![example_comment](images/example_comment.png)
+
+If the build is triggered manually, the task will be skipped.
+
+## Compatible with Linux Build Agents
+
+The tasks can execute on all supported build agent operating systems **including Linux and MacOS**.
+</file>
+
+<file path="README.md">
+# Use OpenAI GPT model to review Pull Requests for Azure Devops
+A task for Azure DevOps build pipelines to add GPT as PR reviewer.
+This is based on https://github.com/mlarhrouch/azure-pipeline-gpt-pr-review but with options for allowing users to view and edit the AI instruction prompt for more transparency and customisation.
+
+## Installation
+
+Installation can be done using [Visual Studio MarketPlace](https://marketplace.visualstudio.com/items?itemName=97Saundersj.AIPullRequestReview).
+
+## Usage
+
+Add the tasks to your build definition.
+
+
+When the task is ran comments will be left on each changed file in a Pull Request.
+![image](https://github.com/97saundersj/azure-pipeline-ai-pr-review/assets/34074715/8541bfdd-5de9-4901-9832-3960fe01b277)
+
+## Setup
+
+### Give permission to the build service agent
+
+before use this task, make sure that the build service has permissions to contribute to pull requests in your repository :
+
+![contribute_to_pr](https://github.com/97saundersj/azure-pipeline-ai-pr-review/blob/main/images/contribute_to_pr.png?raw=true)
+
+### Allow Task to access the system token
+
+#### Yaml pipelines 
+
+Add a checkout section with persistCredentials set to true.
+
+```yaml
+steps:
+- checkout: self
+  persistCredentials: true
+```
+
+#### Classic editors 
+
+Enable the option "Allow scripts to access the OAuth token" in the "Agent job" properties :
+
+![allow_access_token](https://github.com/97saundersj/azure-pipeline-ai-pr-review/blob/main/images/allow_access_token.png?raw=true)
+
+### Azure Open AI service
+
+If you choose to use the Azure Open AI service, you must fill in the endpoint and API key of Azure OpenAI. The format of the endpoint is as follows: https://{XXXXXXXX}.openai.azure.com/openai/deployments/{MODEL_NAME}/chat/completions?api-version={API_VERSION}
+
+### Editing Prompt
+
+By default the prompt is as follows.
+![image](https://github.com/97saundersj/azure-pipeline-ai-pr-review/assets/34074715/5d70b71d-5394-4b1f-a2b7-43aad66f0aea)
+
+It can be customised to your needs.
+For example.
+![image](https://github.com/97saundersj/azure-pipeline-ai-pr-review/assets/34074715/a6737110-2b0b-4b50-a6a9-9820c0875068)
+Will result in this comment being made instead.
+![image](https://github.com/97saundersj/azure-pipeline-ai-pr-review/assets/34074715/d7241613-2e4c-4c94-99ac-242ab1cc334c)
+
+### OpenAI Models
+
+In case you don't use Azure Open AI Service, you can choose which model to use, the supported models are "gpt-4", "gpt-3.5-turbo" and "gpt-3.5-turbo-16k". if no model is selected the "gpt-3.5-turbo" is used.
+
+## Contributions
+
+Found and fixed a bug or improved on something? Contributions are welcome! Please target your pull request against the `main` branch or report an issue on [GitHub](https://github.com/97saundersj/azure-pipeline-ai-pr-review/issues) so someone else can try and implement or fix it.
+
+## License
+
+[MIT](https://raw.githubusercontent.com/97saundersj/azure-pipeline-ai-pr-review/main/LICENSE)
+</file>
+
+<file path="GPTPullRequestReview/task.json">
+{
+  "id": "962a2b6e-0555-477b-b8dc-40a7af3f0c8b",
+  "name": "AIPullRequestReview",
+  "friendlyName": "AI PR Review",
+  "description": "This task uses OpenAi API to review and leave comments on PullRequests",
+  "author": "Jacques Saunders",
+  "helpMarkDown": "[More Information](https://github.com/97saundersj/azure-pipeline-ai-pr-review)",
+  "category": "Utility",
+  "visibility": [
+    "Build"
+  ],
+  "demands": [],
+  "version": {
+    "Major": "0",
+    "Minor": "1",
+    "Patch": "17"
+  },
+  "minimumAgentVersion": "1.95.0",
+  "instanceNameFormat": "AIPullRequestReview $(message)",
+  "inputs": [
+    {
+      "name": "api_key",
+      "type": "string",
+      "label": "Api key",
+      "defaultValue": "",
+      "required": true,
+      "helpMarkDown": "Api key of OpenAi or Azure OpenAI."
+    },
+    {
+      "name": "model",
+      "type": "pickList",
+      "label": "OpenAI model",
+      "required": false,
+      "options": {
+        "": "",
+        "gpt-4": "GPT 4",
+        "gpt-3.5-turbo": "GPT 3.5 Turbo",
+        "gpt-3.5-turbo-16k": "GPT 3.5 Turbo 16k"
+      },
+      "helpMarkDown": "The OpenAI model to use. not used if you use Azure OpenAI. if no model is selected, the GPT 3.5 Turbo model is used."
+    },
+    {
+      "name": "aoi_endpoint",
+      "type": "string",
+      "label": "Azure OpenApi Endpoint",
+      "defaultValue": "",
+      "required": false,
+      "helpMarkDown": "Azure OpenApi Endpoint, leave empty to use default endpoint. (optional)"
+    },
+    {
+      "name": "support_self_signed_certificate",
+      "type": "boolean",
+      "label": "Support self-signed certificate",
+      "defaultValue": "false",
+      "required": false,
+      "helpMarkDown": "Select this option to support self-signed certificate."
+    },
+    {
+      "name": "ai_instructions",
+      "type": "multiLine",
+      "label": "AI Instruction Prompt",
+      "defaultValue": "Act as a code reviewer of a Pull Request, providing feedback on possible bugs and clean code issues.\nYou are provided with the Pull Request changes in a patch format.\nEach patch entry has the commit message in the Subject line followed by the code changes (diffs) in a unidiff format.\n\nAs a code reviewer, your task is:\n- Review only added, edited or deleted lines.\n- If there's no bugs and the changes are correct, write only 'No feedback.'\n- If there's bug or incorrect code changes, don't write 'No feedback.'",
+      "required": true,
+      "helpMarkDown": "Changing this from the default value may cause issues with the review"
+    }
+  ],
+  "execution": {
+    "Node10": {
+      "target": "dist/index.js"
+    }
+  }
+}
+</file>
+
+<file path="vss-extension.json">
+{
+    "manifestVersion": 1,
+    "id": "AIPullRequestReview",
+    "name": "AI PR Review",
+    "version": "0.1.17",
+    "publisher": "97Saundersj",
+    "galleryFlags": [
+        "Public",
+        "Preview"
+    ],
+    "targets": [
+        {
+            "id": "Microsoft.VisualStudio.Services"
+        }
+    ],    
+    "description": "A task that reviews Pull Requests using GPT models from OpenAI",
+    "categories": [
+        "Azure Pipelines"
+    ],
+    "icons": {
+        "default": "images/icon.png"        
+    },
+    "tags": [
+        "OpenAI",
+        "GPT",
+        "pullRequest",
+        "review"
+    ],
+    "files": [
+        {
+            "path": "GPTPullRequestReview"
+        }
+    ],
+    "repository" : {
+        "type" : "git",
+        "uri" : "https://github.com/97saundersj/azure-pipeline-ai-pr-review"
+    },
+    "content": {
+        "details": {
+            "path": "overview.md"
+        }
+    },
+    "contributions": [
+        {
+            "id": "GPTPullRequestReview",
+            "type": "ms.vss-distributed-task.task",
+            "targets": [
+                "ms.vss-distributed-task.tasks"
+            ],
+            "properties": {
+                "name": "GPTPullRequestReview"
+            }
+        }
+    ]
+}
+</file>
+
+</files>

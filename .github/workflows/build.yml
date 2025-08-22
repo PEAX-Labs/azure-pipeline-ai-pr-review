@@ -12,12 +12,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Setup Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
-        node-version: '18'
+        node-version: '20'
         cache: 'npm'
 
     - name: Update version numbers
@@ -31,22 +31,22 @@ jobs:
         node -p "const fs=require('fs'); const pkg=require('./vss-extension.json'); pkg.version='$NEW_VERSION'; fs.writeFileSync('./vss-extension.json', JSON.stringify(pkg, null, 2))"
         
         # Update task.json
-        node -p "const fs=require('fs'); const pkg=require('./GPTPullRequestReview/task.json'); pkg.version.Patch='$NEW_VERSION'.split('.')[2]; fs.writeFileSync('./GPTPullRequestReview/task.json', JSON.stringify(pkg, null, 2))"
+        node -p "const fs=require('fs'); const pkg=require('./SmartCodeReviewer/task.json'); pkg.version.Patch='$NEW_VERSION'.split('.')[2]; fs.writeFileSync('./SmartCodeReviewer/task.json', JSON.stringify(pkg, null, 2))"
 
     - name: Install dependencies
       run: |
-        cd GPTPullRequestReview
+        cd SmartCodeReviewer
         npm install
         cd ..
 
     - name: Build TypeScript
       run: |
-        cd GPTPullRequestReview
+        cd SmartCodeReviewer
         npm run build
         cd ..
 
     - name: Install tfx-cli
-      run: npm install -g tfx-cli
+      run: npm install -g tfx-cli@latest
 
     - name: Package Extension
       run: tfx extension create --manifest-globs vss-extension.json
@@ -54,6 +54,6 @@ jobs:
     - name: Upload Extension
       uses: actions/upload-artifact@v4
       with:
-        name: extension
+        name: smart-code-reviewer-extension
         path: "*.vsix"
-        retention-days: 5 
+        retention-days: 30 
